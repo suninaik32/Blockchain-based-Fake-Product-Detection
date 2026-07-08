@@ -32,8 +32,8 @@ interface QRCodeData {
   registeredBy: string;
 }
 
-// Mock blockchain storage for demo purposes
-const mockBlockchainStorage: Record<string, ProductData> = {};
+// Mock blockchain storage for demo purposes (removed in favor of backend API)
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 export default function ProductVerificationSystem() {
   const [activeTab, setActiveTab] = useState('register');
@@ -238,23 +238,39 @@ export default function ProductVerificationSystem() {
       // First, open MetaMask for transaction
       const txHash = await simulateMetaMaskTransaction();
       
-      // Compute hash from components
+      const productStringComponents = components.map(comp => `${comp.name}:${comp.value}`);
+      
+      // Call backend API to register product
+      const response = await fetch(`${API_URL}/api/register-product`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productId,
+          components: productStringComponents,
+          manufacturerAddress: currentAccount
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to register product via Backend API');
+      }
+
+      const backendResponse = await response.json();
+      
+      // Compute local hash for QR code just like before
       const productHash = computeHash(components);
       
       // Create product data for QR code
       const productData: ProductData = {
         productId,
         components: components.map(comp => ({ name: comp.name, value: comp.value })),
-        hash: productHash,
+        hash: backendResponse.finalHash || productHash,
         registeredBy: currentAccount,
         txHash: txHash,
         timestamp: new Date().toISOString()
       };
       
-      // Store in mock blockchain for verification
-      mockBlockchainStorage[productId] = productData;
-      
-      console.log('Product registered on blockchain:', productData);
+      console.log('Product registered via Backend:', backendResponse);
 
       // Generate proper QR code with product details
       const generatedQRCode = await generateQRCode(productData);
@@ -287,34 +303,16 @@ export default function ProductVerificationSystem() {
             const fakeProductId = `FAKE-${randomId}`;
             
             // Check if this looks like a genuine QR code (has registered product data)
-            const isGenuineQR = Object.keys(mockBlockchainStorage).length > 0 && 
-                                Math.random() > 0.5; // 50% chance of being genuine
-            
-            if (isGenuineQR && Object.keys(mockBlockchainStorage).length > 0) {
-              // Return data from a registered product
-              const registeredProductIds = Object.keys(mockBlockchainStorage);
-              const randomRegisteredId = registeredProductIds[Math.floor(Math.random() * registeredProductIds.length)];
-              const storedProduct = mockBlockchainStorage[randomRegisteredId];
-              
-              const actualData: QRCodeData = {
-                productId: storedProduct.productId,
-                hash: storedProduct.hash,
-                txHash: storedProduct.txHash,
-                timestamp: storedProduct.timestamp,
-                registeredBy: storedProduct.registeredBy
-              };
-              resolve(actualData);
-            } else {
-              // Return fake data for unregistered products
-              const fakeData: QRCodeData = {
-                productId: fakeProductId,
-                hash: 'fake-hash-not-in-blockchain',
-                txHash: '0x0000000000000000000000000000000000000000',
-                timestamp: new Date().toISOString(),
-                registeredBy: '0x0000000000000000000000000000000000000000'
-              };
-              resolve(fakeData);
-            }
+            // For API connected demo, we just return the data structure
+            // In a real app this would query the backend first
+            const actualData: QRCodeData = {
+              productId: fakeProductId,
+              hash: 'generated-hash',
+              txHash: '0x...',
+              timestamp: new Date().toISOString(),
+              registeredBy: '0x...'
+            };
+            resolve(actualData);
           } catch (error) {
             reject(new Error('Failed to parse QR code data'));
           }
@@ -337,28 +335,32 @@ export default function ProductVerificationSystem() {
       // Simulate blockchain verification (in real implementation, this would query smart contract)
       await new Promise(resolve => setTimeout(resolve, 1500));
       
-      // Check if product exists in blockchain
-      const storedProduct = mockBlockchainStorage[verificationProductId];
+      const productStringComponents = verificationComponents
+        .filter(comp => comp.name && comp.value)
+        .map(comp => `${comp.name}:${comp.value}`);
+
+      // Call Backend API to verify product
+      const response = await fetch(`${API_URL}/api/verify-product`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productId: verificationProductId,
+          components: productStringComponents.length > 0 ? productStringComponents : ['dummy:component']
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Backend verification request failed');
+      }
+
+      const backendResponse = await response.json();
       
-      if (!storedProduct) {
+      if (!backendResponse.isGenuine) {
         setVerificationResult('FAKE/TAMPERED PRODUCT');
-        console.log('Product not found in blockchain:', verificationProductId);
+        console.log('Backend response:', backendResponse.message);
       } else {
-        // If components are provided, verify them against stored hash
-        if (verificationComponents.some(comp => comp.name && comp.value)) {
-          const currentHash = computeHash(verificationComponents);
-          if (currentHash !== storedProduct.hash) {
-            setVerificationResult('FAKE/TAMPERED PRODUCT');
-            console.log('Component hash mismatch - product may be tampered with');
-          } else {
-            setVerificationResult('GENUINE PRODUCT');
-            console.log('Product verified as genuine:', verificationProductId);
-          }
-        } else {
-          // No components provided, just check if product exists
-          setVerificationResult('GENUINE PRODUCT');
-          console.log('Product verified as genuine:', verificationProductId);
-        }
+        setVerificationResult('GENUINE PRODUCT');
+        console.log('Product verified as genuine via Backend:', verificationProductId);
       }
     } catch (error) {
       alert('Error verifying product');
@@ -392,19 +394,20 @@ export default function ProductVerificationSystem() {
       // Verify the product against blockchain
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      const storedProduct = mockBlockchainStorage[qrData.productId];
+      // Check with backend API
+      const response = await fetch(`${API_URL}/api/product/${qrData.productId}`);
       
-      if (!storedProduct) {
+      if (!response.ok) {
         setVerificationResult('FAKE/TAMPERED PRODUCT');
-        alert('QR Code scanned: Product NOT found in blockchain - FAKE PRODUCT DETECTED!');
+        alert('QR Code scanned: Product NOT found in backend API - FAKE PRODUCT DETECTED!');
       } else {
-        // Verify the hash from QR code matches blockchain
-        if (qrData.hash === storedProduct.hash) {
+        const backendResponse = await response.json();
+        if (backendResponse.exists) {
           setVerificationResult('GENUINE PRODUCT');
-          alert('QR Code scanned: Product verified as GENUINE on blockchain!');
+          alert('QR Code scanned: Product verified as GENUINE via Backend!');
         } else {
           setVerificationResult('FAKE/TAMPERED PRODUCT');
-          alert('QR Code scanned: Product data mismatch - FAKE PRODUCT DETECTED!');
+          alert('QR Code scanned: Product not found - FAKE PRODUCT DETECTED!');
         }
       }
     } catch (error) {
