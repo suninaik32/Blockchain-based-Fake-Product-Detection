@@ -1,0 +1,18 @@
+services:
+  # Backend Web Service
+  - type: web
+    name: fake-product-backend
+    env: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: PORT
+        value: 10000
+
+  # Frontend Static Site
+  - type: static_site
+    name: fake-product-frontend
+    env: static
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist

@@ -1,9 +1,0 @@
-services:
-  - type: web
-    name: fake-product-detection-backend
-    env: node
-    buildCommand: npm install
-    startCommand: npm start
-    envVars:
-      - key: PORT
-        value: 10000
