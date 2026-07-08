@@ -14,8 +14,8 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, '../public')));
 
 // Web3 configuration (update with your Ganache RPC URL)
-const web3 = new Web3('http://localhost:7545');
-const contractAddress ='0x80ee39aE5628B8b388AFEf125337B7bFF891cB02'; // Update after deployment
+const web3 = new Web3('HTTP://127.0.0.1:7545');
+const contractAddress ='0x668561Daa579A0651499fcA86d6af5b723793528'; // Update after deployment
 const contractABI = [ /* ... your ABI unchanged ... */ ];
 
 const contract = new web3.eth.Contract(contractABI, contractAddress);

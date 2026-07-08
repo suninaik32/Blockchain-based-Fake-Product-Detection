@@ -152,7 +152,7 @@ export default function ProductVerificationSystem() {
         method: 'eth_sendTransaction',
         params: [{
           from: currentAccount,
-          to: '0x0000000000000000000000000000000000000000', // Dummy address
+          to: '0x668561Daa579A0651499fcA86d6af5b723793528', // Wallet requesting address
           value: '0x0', // No value transfer
           data: '0x' // Empty data
         }]
