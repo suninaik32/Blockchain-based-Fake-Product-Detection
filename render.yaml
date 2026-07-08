@@ -11,7 +11,7 @@ services:
         value: 10000
 
   # Frontend Static Site
-  - type: static_site
+  - type: web
     name: fake-product-frontend
     env: static
     buildCommand: npm install && npm run build
